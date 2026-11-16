@@ -1,21 +1,21 @@
 import pickle
+from abc import ABC, abstractmethod
+from typing import Any, Dict, List, Optional
+
 import numpy as np
 
-from abc import ABC, abstractmethod
-from typing import List, Dict, Any, Optional
-
-from .prediction import Prediction
 from .compression import DissimilarityMatrix
+from .prediction import Prediction
 
 
 class _SCoPE(ABC):
     def __init__(
         self,
         compressors: List[str],
-        join_string: str = ' ',
-        keep_similar: bool = False,
+        join_string: str = " ",
+        keep_similar: bool = True,
         class_weights: Optional[Dict[int, float]] = None,
-        dissimilarity_metric_names: List[str] = ['ncd', 'cdm'], # noqa
+        dissimilarity_metric_names: List[str] = ["ncd", "cdm"],  # noqa
     ):
         self._dissimilarity_matrix = DissimilarityMatrix(
             compressor_names=compressors,
@@ -26,12 +26,12 @@ class _SCoPE(ABC):
         self._class_weights = class_weights
 
     def save(self, path: str):
-        with open(path, 'wb') as f:
+        with open(path, "wb") as f:
             pickle.dump(self, f)
 
     @classmethod
     def load(cls, path: str):
-        with open(path, 'rb') as f:
+        with open(path, "rb") as f:
             return pickle.load(f)
 
     def predict(
@@ -55,12 +55,10 @@ class _SCoPE(ABC):
     def _predict(
         self,
         dissimilarity_matrix: Dict[str, np.ndarray],
-    ) -> Any:
-        ...
+    ) -> Any: ...
 
     @abstractmethod
     def _get_predicted_class(
         self,
         scores: Dict[int, float],
-    ) -> int:
-        ...
+    ) -> int: ...

@@ -20,6 +20,7 @@ example = [
 ]
 experiments = [
     "cmaes>=0.13.0",
+    "deepchem>=2.8.0",
     "matplotlib>=3.10.9",
     "pandas>=3.0.3",
     "rdkit>=2026.3.2",

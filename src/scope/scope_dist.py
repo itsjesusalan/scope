@@ -1,44 +1,35 @@
-import numpy as np
-from typing import (
-    List, Dict, Any, Optional
-)
-from .prediction import DistPrediction
-from .compression.matrix import (
-        _compressor_indexes,
-        _dissimilarity_indexes
-)
+from typing import Any, Dict, List, Optional
 
+import numpy as np
+
+from .compression.matrix import _compressor_indexes, _dissimilarity_indexes
 from .model import _SCoPE
+from .prediction import DistPrediction
 
 
 class SCoPEDistances(_SCoPE):
     def __init__(
         self,
         compressors: List[str],
-        join_string: str = ' ',
-        keep_similar: bool = False,
+        join_string: str = " ",
+        keep_similar: bool = True,
         class_weights: Optional[Dict[int, float]] = None,
-        dissimilarity_metrics: List[str] = ['ncd', 'cdm'],  # noqa
+        dissimilarity_metrics: List[str] = ["ncd", "cdm"],  # noqa
     ):
         super().__init__(
             compressors=compressors,
             join_string=join_string,
             keep_similar=keep_similar,
             dissimilarity_metric_names=dissimilarity_metrics,
-            class_weights=class_weights
+            class_weights=class_weights,
         )
 
-    def compute_classification_score(
-        self,
-        *args, **kwargs
-    ) -> Any:
-        ...
+    def compute_classification_score(self, *args, **kwargs) -> Any: ...
 
     def _get_predicted_class(
         self,
         scores: Dict[int, float],
-    ) -> int:
-        ...
+    ) -> int: ...
 
     @staticmethod
     def _calculate_distance(
@@ -70,19 +61,22 @@ class SCoPEDistances(_SCoPE):
 
         classifier_labels = [
             f"{c} | {m}"
-            for c in sorted(self._dissimilarity_matrix.compressor_names,
-                            key=lambda x: _compressor_indexes[x])
-            for m in sorted(self._dissimilarity_matrix.dissimilarity_metric_names,
-                            key=lambda x: _dissimilarity_indexes[x])
+            for c in sorted(
+                self._dissimilarity_matrix.compressor_names,
+                key=lambda x: _compressor_indexes[x],
+            )
+            for m in sorted(
+                self._dissimilarity_matrix.dissimilarity_metric_names,
+                key=lambda x: _dissimilarity_indexes[x],
+            )
         ]
 
         distances_per_class = {}
         euclidean_distances = {}
         cosine_distances = {}
-        cluster_keys = [k for k in dissimilarity_matrix if 'Cluster' in k]
+        cluster_keys = [k for k in dissimilarity_matrix if "Cluster" in k]
 
         for index, key in enumerate(cluster_keys):
-
             support_data = dissimilarity_matrix[key][:-1].mean(axis=0, keepdims=True)
 
             query_data = dissimilarity_matrix[key][-1:][0]
@@ -95,8 +89,7 @@ class SCoPEDistances(_SCoPE):
             )
 
             cos_dist = 1 - self._calculate_similarity(
-                support=support_data,
-                query=query_data
+                support=support_data, query=query_data
             )
 
             distances = euc_dist * cos_dist

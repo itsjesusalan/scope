@@ -44,8 +44,8 @@ def parse_all_reports_comprehensive(root_dir):
     search_records = []
     eval_records = []
 
-    search_regex = re.compile(r"results/([^/]+)/search_results/scope/(\d+|variable)")
-    eval_regex = re.compile(r"results/([^/]+)/search_results/scope/(\d+|variable)")
+    search_regex = re.compile(r"results/([^/]+)/search_results/(\d+|variable)")
+    eval_regex = re.compile(r"results/([^/]+)/search_results/(\d+|variable)")
 
     for root, _, files in os.walk(root_dir):
         for file in files:
@@ -80,7 +80,6 @@ def parse_all_reports_comprehensive(root_dir):
                                 "std_score": trial.get("std_score"),
                                 "compressors": compressors,
                                 "metrics": metrics,
-                                "keep_similar": str(params.get("keep_similar")),
                             }
                         )
                 except Exception as e:
@@ -161,45 +160,6 @@ def plot_learning_curve(
     plt.ylabel("Top Validation Score", fontsize=11)
     plt.tight_layout()
     plt.savefig(os.path.join(output_dir, "validation_learning_curve.png"), dpi=300)
-    plt.close()
-
-
-# ─── GRÁFICA 2: ESTUDIO DE ABLACIÓN (KEEP_SIMILAR) ─────────────────────────
-def plot_keep_similar_impact(
-    df_search,
-    output_dir: str,
-    dataset_name: str,
-    figsize: tuple = (10, 5),
-):
-    plt.figure(figsize=figsize)
-    flare_colors = sns.color_palette("flare", 5)
-    ks_palette = {"True": flare_colors[3], "False": flare_colors[0]}
-
-    local_order = [s for s in SAMPLE_ORDER if s in set(df_search["samples"])]
-
-    sns.boxplot(
-        data=df_search,
-        x="samples",
-        y="score",
-        hue="keep_similar",
-        order=local_order,
-        palette=ks_palette,
-        linewidth=1.5,
-        width=0.6,
-        fliersize=3,
-    )
-
-    plt.title(
-        f"[{dataset_name.capitalize()}] Ablation Study: Impact of 'keep_similar' (Parameter Search Validation)",
-        fontsize=12,
-        fontweight="bold",
-        pad=15,
-    )
-    plt.xlabel("Number of Samples", fontsize=11)
-    plt.ylabel("Validation Score Distribution (All Search Trials)", fontsize=11)
-    plt.legend(title="keep_similar", bbox_to_anchor=(1.05, 1), loc="upper left")
-    plt.tight_layout()
-    plt.savefig(os.path.join(output_dir, "keep_similar_ablation.png"), dpi=300)
     plt.close()
 
 
@@ -358,9 +318,7 @@ def plot_error_rates_evolution(
 def plot_stability_scatter(
     df_search, output_dir: str, dataset_name: str, figsize: tuple = (9, 5.5)
 ):
-    viable_df = df_search[df_search["keep_similar"] == "True"]
-    if viable_df.empty:
-        return
+    viable_df = df_search
 
     local_order = [s for s in SAMPLE_ORDER if s in set(viable_df["samples"])]
 
@@ -396,7 +354,7 @@ def plot_stability_scatter(
 def plot_compressor_metric_heatmap(
     df_search, output_dir: str, dataset_name: str, figsize: tuple = (10, 6.5)
 ):
-    viable_df = df_search[df_search["keep_similar"] == "True"]
+    viable_df = df_search
     if viable_df.empty:
         return
 
@@ -580,7 +538,6 @@ if __name__ == "__main__":
 
             if not df_search.empty:
                 plot_learning_curve(df_search, dataset_plot_dir, current_dataset)
-                plot_keep_similar_impact(df_search, dataset_plot_dir, current_dataset)
                 plot_stability_scatter(df_search, dataset_plot_dir, current_dataset)
                 plot_compressor_metric_heatmap(
                     df_search, dataset_plot_dir, current_dataset
