@@ -16,30 +16,75 @@ sns.set_theme(
     },
 )
 
-# ─── ORDEN DE "samples" (números primero, "variable" al final) ─────────────
+DATASET_LABELS = {
+    "clintox": "ClinTox",
+    "bace": "BACE",
+    "bbbp": "BBBP",
+}
+
+
+def pretty_dataset(name: str) -> str:
+    return DATASET_LABELS.get(str(name).lower(), str(name).upper())
+
+
+METRIC_LABELS = {
+    "auc_roc": "AUC-ROC",
+    "f1_score": "Macro F1",
+    "balanced_accuracy": "Balanced accuracy",
+    "mcc": "MCC",
+    "fp_rate": "False positive rate",
+    "fn_rate": "False negative rate",
+}
+
+METRIC_ORDER = ["auc_roc", "balanced_accuracy", "f1_score", "mcc"]
+
+
 SAMPLE_ORDER: list[str] = []
-SAMPLE_POS: dict[str, int] = {}
+SAMPLE_POS: dict[str, float] = {}
+SAMPLE_FIXED: list[str] = []
+SAMPLE_SPECIAL: list[str] = []
+GAP = 1.6
 
 
 def set_sample_order(*dfs):
-    global SAMPLE_ORDER, SAMPLE_POS
+    global SAMPLE_ORDER, SAMPLE_POS, SAMPLE_FIXED, SAMPLE_SPECIAL
     vals = set()
     for d in dfs:
         if not d.empty:
             vals |= set(d["samples"].astype(str))
     nums = sorted((v for v in vals if v.isdigit()), key=int)
     others = sorted(v for v in vals if not v.isdigit())
+
+    SAMPLE_FIXED, SAMPLE_SPECIAL = nums, others
     SAMPLE_ORDER = nums + others
-    SAMPLE_POS = {s: i for i, s in enumerate(SAMPLE_ORDER)}
+
+    SAMPLE_POS = {s: float(i) for i, s in enumerate(nums)}
+    for j, s in enumerate(others):
+        SAMPLE_POS[s] = len(nums) - 1 + GAP + j
 
 
-def set_sample_axis(ax):
-    ax.set_xticks(range(len(SAMPLE_ORDER)))
+def _divider_x():
+    if not SAMPLE_FIXED or not SAMPLE_SPECIAL:
+        return None
+    return (SAMPLE_POS[SAMPLE_FIXED[-1]] + SAMPLE_POS[SAMPLE_SPECIAL[0]]) / 2
+
+
+def set_sample_axis(ax, divider: bool = True):
+    ticks = [SAMPLE_POS[s] for s in SAMPLE_ORDER]
+    ax.set_xticks(ticks)
     ax.set_xticklabels(SAMPLE_ORDER)
-    ax.set_xlim(-0.5, len(SAMPLE_ORDER) - 0.5)
+    ax.set_xlim(min(ticks) - 0.5, max(ticks) + 0.5)
+
+    xd = _divider_x()
+    if divider and xd is not None:
+        ax.axvline(xd, color="0.65", linewidth=1.0, linestyle=(0, (4, 4)), zorder=0)
 
 
-# ─── PARSEO ────────────────────────────────────────────────────────────────
+def split_fixed_special(df):
+    is_special = df["samples"].astype(str).isin(SAMPLE_SPECIAL)
+    return df[~is_special], df[is_special]
+
+
 def parse_all_reports_comprehensive(root_dir):
     search_records = []
     eval_records = []
@@ -116,7 +161,6 @@ def parse_all_reports_comprehensive(root_dir):
     return pd.DataFrame(search_records), pd.DataFrame(eval_records)
 
 
-# ─── GRÁFICA 1: CURVA DE APRENDIZAJE PURA ──────────────────────────────────
 def plot_learning_curve(
     df_search,
     output_dir: str,
@@ -151,7 +195,7 @@ def plot_learning_curve(
 
     set_sample_axis(plt.gca())
     plt.title(
-        f"[{dataset_name.capitalize()}] Parameter Search Validation: Best Score vs Sample Size",
+        f"[{pretty_dataset(dataset_name)}] Parameter Search Validation: Best Score vs Sample Size",
         fontsize=12,
         fontweight="bold",
         pad=15,
@@ -163,54 +207,160 @@ def plot_learning_curve(
     plt.close()
 
 
-# ─── GRÁFICA 3: EVALUACIÓN FINAL DE TEST (MULTIMÉTRICA) ─────────────────────
 def plot_final_test_metrics(
-    df_eval, output_dir: str, dataset_name: str, figsize: tuple = (10, 8)
+    df_eval,
+    output_dir: str,
+    dataset_name: str,
+    figsize: tuple = (7.2, 4.6),
+    layout: str = "single",
+    ylim: tuple | None = (-0.06, 1.0),
+    chance_line: bool = False,
+    dodge: float = 0.09,
 ):
     if df_eval.empty:
         return
 
+    value_vars = [m for m in METRIC_ORDER if m in df_eval.columns]
     df_long = df_eval.melt(
         id_vars=["samples"],
-        value_vars=["auc_roc", "f1_score", "balanced_accuracy", "mcc"],
-        var_name="Metric",
+        value_vars=value_vars,
+        var_name="metric",
         value_name="Value",
     )
-    df_long["x"] = df_long["samples"].map(SAMPLE_POS)
+    df_long["x"] = df_long["samples"].astype(str).map(SAMPLE_POS)
+    df_long["Metric"] = df_long["metric"].map(METRIC_LABELS)
+    df_long = df_long.sort_values("x")
 
-    g = sns.FacetGrid(df_long, col="Metric", col_wrap=2, sharey=False)
-
-    g.figure.set_size_inches(figsize)
-
-    g.map(
-        sns.lineplot,
-        "x",
-        "Value",
-        marker="o",
-        linewidth=2.5,
-        color=sns.color_palette("flare", 3)[1],
+    labels = [METRIC_LABELS[m] for m in value_vars]
+    palette = dict(zip(labels, sns.color_palette("flare", len(labels))))
+    markers = dict(zip(labels, ["o", "s", "^", "D"][: len(labels)]))
+    linestyles = dict(
+        zip(labels, ["-", (0, (5, 1.5)), (0, (1, 1.2)), (0, (4, 1.2, 1, 1.2))])
     )
 
-    g.set_titles(template="Test: {col_name}")
-    g.set_axis_labels("Number of Samples", "Test Score / Value")
+    offsets = {
+        label: (i - (len(labels) - 1) / 2) * dodge for i, label in enumerate(labels)
+    }
 
-    for ax in g.axes.flat:
+    title = f"{pretty_dataset(dataset_name)} — test performance vs support-set size"
+
+    if layout == "single":
+        fig, ax = plt.subplots(figsize=figsize)
+
+        fixed, special = split_fixed_special(df_long)
+
+        for label in labels:
+            dx = offsets[label]
+            sub = fixed[fixed["Metric"] == label]
+            ax.plot(
+                sub["x"] + dx,
+                sub["Value"],
+                marker=markers[label],
+                markersize=5,
+                markeredgecolor="white",
+                markeredgewidth=0.6,
+                linewidth=1.8,
+                linestyle=linestyles[label],
+                color=palette[label],
+                label=label,
+                zorder=3,
+            )
+            sp = special[special["Metric"] == label]
+            ax.plot(
+                sp["x"] + dx,
+                sp["Value"],
+                marker=markers[label],
+                markersize=6,
+                markeredgecolor="white",
+                markeredgewidth=0.6,
+                linestyle="none",
+                color=palette[label],
+                zorder=3,
+            )
+
+        if chance_line:
+            ax.axhline(
+                0.5,
+                color="0.45",
+                linewidth=1.0,
+                linestyle=":",
+                zorder=0,
+                label="Chance (AUC-ROC, bal. acc.)",
+            )
+
         set_sample_axis(ax)
+        if ylim is not None:
+            ax.set_ylim(*ylim)
+        ax.set_xlabel("Support-set size $k$", fontsize=11)
+        ax.set_ylabel("Test score", fontsize=11)
+        ax.set_title(title, fontsize=12, fontweight="bold", pad=10)
 
-    plt.suptitle(
-        f"Dataset: {dataset_name.capitalize()} (Final Test Evaluation)",
-        fontsize=12,
-        fontweight="bold",
+        handles, lab = ax.get_legend_handles_labels()
+        fig.legend(
+            handles,
+            lab,
+            fontsize=9,
+            ncol=min(len(lab), 4),
+            loc="upper center",
+            bbox_to_anchor=(0.5, 0.0),
+            frameon=False,
+        )
+
+        fig.tight_layout()
+        fig.savefig(
+            os.path.join(output_dir, "final_test_evaluation.png"),
+            dpi=300,
+            bbox_inches="tight",
+        )
+        plt.close(fig)
+        return
+
+    ncol = 2
+    nrow = -(-len(labels) // ncol)
+    fig, axes = plt.subplots(
+        nrow, ncol, figsize=figsize, sharex=True, sharey=True, squeeze=False
     )
 
-    plt.tight_layout()
-    g.figure.subplots_adjust(top=0.90)
+    for ax, label in zip(axes.flat, labels):
+        sub = df_long[df_long["Metric"] == label].sort_values("x")
+        fixed, special = split_fixed_special(sub)
+        ax.plot(
+            fixed["x"],
+            fixed["Value"],
+            marker="o",
+            markersize=5,
+            linewidth=2.0,
+            color=palette[label],
+            zorder=3,
+        )
+        ax.plot(
+            special["x"],
+            special["Value"],
+            marker="o",
+            markersize=6,
+            linestyle="none",
+            color=palette[label],
+            zorder=3,
+        )
+        set_sample_axis(ax)
+        if ylim is not None:
+            ax.set_ylim(*ylim)
+        ax.set_title(label, fontsize=11)
 
-    g.savefig(os.path.join(output_dir, "final_test_evaluation.png"), dpi=300)
-    plt.close()
+    for ax in list(axes.flat)[len(labels) :]:
+        ax.set_visible(False)
+
+    for ax in axes[-1]:
+        ax.set_xlabel("Support-set size $k$", fontsize=11)
+    for row in axes:
+        row[0].set_ylabel("Test score", fontsize=11)
+
+    fig.suptitle(title, fontsize=12, fontweight="bold")
+    fig.tight_layout()
+    fig.savefig(os.path.join(output_dir, "final_test_evaluation.png"), dpi=300)
+    plt.close(fig)
 
 
-# ─── GRÁFICA 4: COMPARATIVA BÚSQUEDA VS TEST (OVERFITTING GAP) ────────────
 def plot_validation_vs_test(
     df_search,
     df_eval,
@@ -261,7 +411,7 @@ def plot_validation_vs_test(
 
     set_sample_axis(plt.gca())
     plt.title(
-        f"[{dataset_name.capitalize()}] Generalization Gap: Parameter Search vs Final Test ({target_metric})",
+        f"[{pretty_dataset(dataset_name)}] Generalization Gap: Parameter Search vs Final Test ({target_metric})",
         fontsize=12,
         fontweight="bold",
         pad=15,
@@ -273,7 +423,6 @@ def plot_validation_vs_test(
     plt.close()
 
 
-# ─── GRÁFICA 5: EVOLUCIÓN DE ERRORES (FP VS FN EN TEST) ──────────────
 def plot_error_rates_evolution(
     df_eval, output_dir: str, dataset_name: str, figsize: tuple = (9, 5.5)
 ):
@@ -302,7 +451,7 @@ def plot_error_rates_evolution(
 
     set_sample_axis(plt.gca())
     plt.title(
-        f"[{dataset_name.capitalize()}] Error Analysis: False Positive vs False Negative Rates (Final Test Evaluation)",
+        f"[{pretty_dataset(dataset_name)}] Error Analysis: False Positive vs False Negative Rates (Final Test Evaluation)",
         fontsize=12,
         fontweight="bold",
         pad=15,
@@ -314,7 +463,6 @@ def plot_error_rates_evolution(
     plt.close()
 
 
-# ─── GRÁFICA 6: SENSIBILIDAD Y VARIANZA (SCATTER DE ESTABILIDAD) ─────
 def plot_stability_scatter(
     df_search, output_dir: str, dataset_name: str, figsize: tuple = (9, 5.5)
 ):
@@ -337,7 +485,7 @@ def plot_stability_scatter(
     )
 
     plt.title(
-        f"[{dataset_name.capitalize()}] Optimizer Stability: Validation Score vs Standard Deviation",
+        f"[{pretty_dataset(dataset_name)}] Optimizer Stability: Validation Score vs Standard Deviation",
         fontsize=12,
         fontweight="bold",
         pad=15,
@@ -350,7 +498,6 @@ def plot_stability_scatter(
     plt.close()
 
 
-# ─── GRÁFICA 7: MAPA DE INTERACCIÓN DIRECCIONAL (COMPRESOR × MÉTRICA) ───
 def plot_compressor_metric_heatmap(
     df_search, output_dir: str, dataset_name: str, figsize: tuple = (10, 6.5)
 ):
@@ -378,7 +525,7 @@ def plot_compressor_metric_heatmap(
     )
 
     plt.title(
-        f"[{dataset_name.capitalize()}] Synergy Matrix: Compressor vs Metric Interaction (Parameter Search)",
+        f"[{pretty_dataset(dataset_name)}] Synergy Matrix: Compressor vs Metric Interaction (Parameter Search)",
         fontsize=12,
         fontweight="bold",
         pad=20,
@@ -397,7 +544,6 @@ def plot_compressor_metric_heatmap(
     plt.close()
 
 
-# ─── GRÁFICA 8: HISTOGRAMA DE CONFIGURACIONES GANADORAS GLOBAL ─────
 def plot_global_top_parameters_census(
     df_search, output_dir: str, figsize: tuple = (10, 6)
 ):
@@ -440,7 +586,6 @@ def plot_global_top_parameters_census(
     plt.close()
 
 
-# ─── GRÁFICA 9: MATRIZ DE CONFIGURACIONES ÓPTIMAS (DATASET × SAMPLES) ──
 def plot_best_param_matrix(
     df_search, output_dir: str, target_metric: str, figsize: tuple = (14, 6)
 ):
