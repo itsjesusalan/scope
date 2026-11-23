@@ -1,22 +1,23 @@
 import matplotlib
-matplotlib.use('Agg')
 
-import numpy as np
-import seaborn as sns
-from typing import Dict
-from matplotlib.patches import Patch
+matplotlib.use("Agg")
 
 from pathlib import Path
+from typing import Dict
 
 import matplotlib.pyplot as plt
+import numpy as np
+import seaborn as sns
+from matplotlib.patches import Patch
 
-from ..prediction import PolygonPrediction, DistPrediction
+from ..prediction import DistPrediction, PolygonPrediction
+
 
 def plot_polygon_prediction(
     prediction: PolygonPrediction,
     show: bool = False,
     save_path: str | None = None,
-    cmap: str = 'flare',
+    cmap: str = "flare",
 ) -> None:
 
     n_cols = len(prediction.scores)
@@ -27,19 +28,20 @@ def plot_polygon_prediction(
     CLUSTER_COLOR = cmap_object(0.85)
 
     fig, ax = plt.subplots(
-        nrows=1, ncols=n_cols, figsize=(n_cols * 10, 8), layout='tight'
+        nrows=1, ncols=n_cols, figsize=(n_cols * 10, 8), layout="tight"
     )
-    fig.set_layout_engine(layout='tight', w_pad=3)
+    fig.set_layout_engine(layout="tight", w_pad=3)
 
     if n_cols == 1:
         ax = [ax]
 
     for index, key in enumerate(keys):
-
-        hull_cluster_x, hull_cluster_y = prediction.convex_hull_clusters[key].exterior.xy
+        hull_cluster_x, hull_cluster_y = prediction.convex_hull_clusters[
+            key
+        ].exterior.xy
 
         geom = prediction.convex_hull_queries[key]
-        if hasattr(geom, 'exterior'):
+        if hasattr(geom, "exterior"):
             x, y = geom.exterior.xy
         else:
             x, y = geom.xy
@@ -47,63 +49,80 @@ def plot_polygon_prediction(
         # Query hull — naranja, abajo
         ax[index].fill(x, y, color=QUERY_COLOR, alpha=0.10, zorder=2)
         ax[index].plot(
-            x, y,
-            color=QUERY_COLOR, linewidth=2.5, linestyle='--',
-            label="Convex Hull Query", zorder=3
+            x,
+            y,
+            color=QUERY_COLOR,
+            linewidth=2.5,
+            linestyle="--",
+            label="Convex Hull Query",
+            zorder=3,
         )
 
         ax[index].fill(
-            hull_cluster_x, hull_cluster_y,
-            color=CLUSTER_COLOR, alpha=0.07, zorder=4
+            hull_cluster_x, hull_cluster_y, color=CLUSTER_COLOR, alpha=0.07, zorder=4
         )
 
         ax[index].scatter(
             prediction.query_points[key][:, 0],
             prediction.query_points[key][:, 1],
-            color=QUERY_COLOR, label='Query Points',
-            s=70
+            color=QUERY_COLOR,
+            label="Query Points",
+            s=70,
         )
 
         ax[index].plot(
-            hull_cluster_x, hull_cluster_y,
-            color=CLUSTER_COLOR, linewidth=2.5, linestyle='-',
-            label="Convex Hull Cluster", zorder=6
+            hull_cluster_x,
+            hull_cluster_y,
+            color=CLUSTER_COLOR,
+            linewidth=2.5,
+            linestyle="-",
+            label="Convex Hull Cluster",
+            zorder=6,
         )
 
         ax[index].scatter(
             prediction.convex_hull_clusters[key].centroid.x,
             prediction.convex_hull_clusters[key].centroid.y,
-            marker='o', facecolors='none', edgecolors=CLUSTER_COLOR,
-            s=180, linewidths=2.5,
-            label='Cluster Centroid', zorder=7
+            marker="o",
+            facecolors="none",
+            edgecolors=CLUSTER_COLOR,
+            s=180,
+            linewidths=2.5,
+            label="Cluster Centroid",
+            zorder=7,
         )
 
         ax[index].scatter(
             prediction.convex_hull_queries[key].centroid.x,
             prediction.convex_hull_queries[key].centroid.y,
-            marker='D', color=QUERY_COLOR,
-            s=90, linewidths=0,
-            label='Query Centroid', zorder=7
+            marker="D",
+            color=QUERY_COLOR,
+            s=90,
+            linewidths=0,
+            label="Query Centroid",
+            zorder=7,
         )
-        
+
         ax[index].set_title(
             f"Cluster {key}  ·  Score {prediction.scores[key]:.2f}",
-            fontsize=12, color='#444444', pad=8
+            fontsize=12,
+            color="#444444",
+            pad=8,
         )
-        ax[index].set_xlabel('Dissimilarity Metric 1', fontsize=9, color='#444444')
-        ax[index].set_ylabel('Dissimilarity Metric 2', fontsize=9, color='#444444')
+        ax[index].set_xlabel("Dissimilarity Metric 1", fontsize=9, color="#444444")
+        ax[index].set_ylabel("Dissimilarity Metric 2", fontsize=9, color="#444444")
 
-        ax[index].spines[['top', 'right']].set_visible(False)
-        ax[index].spines['left'].set_linewidth(0.8)
-        ax[index].spines['bottom'].set_linewidth(0.8)
+        ax[index].spines[["top", "right"]].set_visible(False)
+        ax[index].spines["left"].set_linewidth(0.8)
+        ax[index].spines["bottom"].set_linewidth(0.8)
 
-        ax[index].tick_params(axis='both', labelsize=9, labelcolor='#444444', length=0)
+        ax[index].tick_params(axis="both", labelsize=9, labelcolor="#444444", length=0)
 
-        ax[index].grid(alpha=0.3, linewidth=0.6, color='gray')
+        ax[index].grid(alpha=0.3, linewidth=0.6, color="gray")
         ax[index].set_axisbelow(True)
 
         ax[index].legend(
-            loc='upper center',
+            loc="upper center",
             bbox_to_anchor=(0.5, -0.08),
             ncols=3,
             fontsize=8,
@@ -119,18 +138,18 @@ def plot_polygon_prediction(
         plt.show()
 
     if save_path:
-        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        plt.savefig(save_path, dpi=300, bbox_inches="tight")
 
     plt.close(fig)
 
 
 def plot_dissimilarity_matrix(
     dissimilarity_matrix: Dict[str, np.ndarray],
-    cmap: str = 'flare',
+    cmap: str = "flare",
     show: bool = False,
-    save_path: str | None = None
+    save_path: str | None = None,
 ):
-    cluster_keys = [k for k in dissimilarity_matrix if 'Cluster' in k]
+    cluster_keys = [k for k in dissimilarity_matrix if "Cluster" in k]
     sample = dissimilarity_matrix[cluster_keys[0]]
 
     _, n_compressors, n_metrics, n_classes = sample.shape
@@ -142,9 +161,9 @@ def plot_dissimilarity_matrix(
         nrows=n_rows,
         ncols=n_columns,
         figsize=(n_columns * 6, n_rows * 4.5),
-        layout='tight'
+        layout="tight",
     )
-    fig.set_layout_engine(layout='tight', w_pad=3)
+    fig.set_layout_engine(layout="tight", w_pad=3)
 
     if n_rows == 1 and n_columns == 1:
         ax = np.array([[ax]])
@@ -179,7 +198,9 @@ def plot_dissimilarity_matrix(
 
                 support_data = metric[:-1]
                 query_data = metric[-1:]
-                labels = [f'Support {n}' for n in range(support_data.shape[0])] + ['Query']
+                labels = [f"Support {n}" for n in range(support_data.shape[0])] + [
+                    "Query"
+                ]
                 combined_heatmap = np.vstack([support_data, query_data])
 
                 current_ax = ax[row_idx, class_idx]
@@ -191,25 +212,28 @@ def plot_dissimilarity_matrix(
                     cmap=cmap,
                     cbar=True,
                     cbar_kws={
-                        'label': 'Metric Dissimilarity',
-                        'format': '%0.2f',
-                        'pad': 0.07,
-                        'fraction': 0.1,
-                        'shrink': 0.85
+                        "label": "Metric Dissimilarity",
+                        "format": "%0.2f",
+                        "pad": 0.07,
+                        "fraction": 0.1,
+                        "shrink": 0.85,
                     },
                     xticklabels=np.arange(n_classes),
                     yticklabels=labels,
-                    ax=current_ax
+                    ax=current_ax,
                 )
 
                 cbar = current_ax.collections[0].colorbar
-                cbar.set_label('Metric Dissimilarity', labelpad=15)
+                cbar.set_label("Metric Dissimilarity", labelpad=15)
 
-                current_ax.tick_params(axis='both', labelsize=9, labelcolor='#666666', length=0)
-                current_ax.spines[['top', 'right', 'left', 'bottom']].set_visible(False)
+                current_ax.tick_params(
+                    axis="both", labelsize=9, labelcolor="#666666", length=0
+                )
+                current_ax.spines[["top", "right", "left", "bottom"]].set_visible(False)
                 current_ax.set_title(
                     f"Class {class_idx}  ·  Metric {metric_idx}  |  Compressor {compressor_idx}",
-                    fontsize=9, color='#666666'
+                    fontsize=9,
+                    color="#666666",
                 )
 
             row_idx += 1
@@ -227,30 +251,50 @@ def plot_auc_roc(
     figsize: tuple[int, int] = (10, 5),
     save_path: str | None = None,
     show: bool = False,
+    cmap: str = "flare",
 ):
     fpr = report.get("fpr")
     tpr = report.get("tpr")
     auc_roc = report.get("auc_roc")
 
     if fpr is None or tpr is None:
-        raise ValueError("ROC curve is only available for binary classification reports.")
+        raise ValueError(
+            "ROC curve is only available for binary classification reports."
+        )
 
     fpr = np.asarray(fpr)
     tpr = np.asarray(tpr)
 
-    fig, ax = plt.subplots(figsize=figsize, layout='tight')
+    cmap_object = sns.color_palette(cmap, as_cmap=True)
+    CURVE_COLOR = cmap_object(0.5)
 
-    ax.plot(fpr, tpr, linewidth=2, label=f"AUC = {auc_roc:.3f}")
-    ax.plot([0, 1], [0, 1], linestyle="--", color="#bbbbbb", linewidth=0.8)
-    ax.fill_between(fpr, tpr, alpha=0.08)
+    fig, ax = plt.subplots(figsize=figsize, layout="tight")
 
-    ax.spines[['top', 'right']].set_visible(False)
-    ax.spines['left'].set_linewidth(0.8)
-    ax.spines['bottom'].set_linewidth(0.8)
+    ax.fill_between(fpr, tpr, color=CURVE_COLOR, alpha=0.12, linewidth=0, zorder=2)
+    ax.plot(
+        fpr,
+        tpr,
+        color=CURVE_COLOR,
+        linewidth=2.2,
+        marker="o" if len(fpr) <= 20 else None,
+        markersize=5,
+        markeredgecolor="white",
+        markeredgewidth=0.6,
+        label=f"AUC = {auc_roc:.3f}",
+        zorder=3,
+    )
+    ax.plot([0, 1], [0, 1], linestyle="--", color="#bbbbbb", linewidth=0.8, zorder=1)
 
-    ax.tick_params(axis='x', labelsize=8, direction='out')
-    ax.tick_params(axis='y', labelsize=8, direction='out')
-    ax.grid(alpha=0.2, linewidth=0.6, color='gray')
+    ax.set_xlabel("False positive rate", fontsize=9, color="#444444")
+    ax.set_ylabel("True positive rate", fontsize=9, color="#444444")
+
+    ax.spines[["top", "right"]].set_visible(False)
+    ax.spines["left"].set_linewidth(0.8)
+    ax.spines["bottom"].set_linewidth(0.8)
+
+    ax.tick_params(axis="x", labelsize=8, direction="out")
+    ax.tick_params(axis="y", labelsize=8, direction="out")
+    ax.grid(alpha=0.2, linewidth=0.6, color="gray")
     ax.set_axisbelow(True)
 
     ax.legend(loc="lower right", fontsize=9, framealpha=0.3)
@@ -265,11 +309,12 @@ def plot_auc_roc(
         plt.show()
     plt.close(fig)
 
+
 def plot_confusion_matrix(
     confusion_matrix,
     normalize: bool = False,
     labels=None,
-    cmap: str = 'flare',
+    cmap: str = "flare",
     figsize: tuple[int, int] = (6, 6),
     title: str = "Confusion Matrix",
     save_path: str | None = None,
@@ -279,17 +324,17 @@ def plot_confusion_matrix(
     if labels is None:
         labels = [str(i) for i in range(cm.shape[0])]
 
-    fig, ax = plt.subplots(figsize=figsize, layout='tight')
+    fig, ax = plt.subplots(figsize=figsize, layout="tight")
 
     image = ax.imshow(cm, cmap=cmap)
 
     cbar = fig.colorbar(image, ax=ax, fraction=0.046, pad=0.04)
-    cbar.ax.tick_params(labelsize=7, labelcolor='#888888')
+    cbar.ax.tick_params(labelsize=7, labelcolor="#888888")
     cbar.outline.set_visible(False)
 
-    ax.spines[['top', 'right', 'left', 'bottom']].set_visible(False)
-    ax.tick_params(axis='x', labelsize=9, labelcolor='#666666', length=0)
-    ax.tick_params(axis='y', labelsize=9, labelcolor='#666666', length=0)
+    ax.spines[["top", "right", "left", "bottom"]].set_visible(False)
+    ax.tick_params(axis="x", labelsize=9, labelcolor="#666666", length=0)
+    ax.tick_params(axis="y", labelsize=9, labelcolor="#666666", length=0)
 
     ax.set_xticks(range(len(labels)))
     ax.set_yticks(range(len(labels)))
@@ -301,7 +346,9 @@ def plot_confusion_matrix(
         for j in range(cm.shape[1]):
             text_value = f"{cm[i, j]:.2f}" if normalize else str(int(cm[i, j]))
             color = "white" if cm[i, j] > threshold else "black"
-            ax.text(j, i, text_value, ha="center", va="center", color=color, fontsize=11)
+            ax.text(
+                j, i, text_value, ha="center", va="center", color=color, fontsize=11
+            )
 
     fig.suptitle(title, fontsize=13)
 
@@ -316,10 +363,10 @@ def plot_confusion_matrix(
 
 def plot_dist_voting(
     prediction: DistPrediction,
-    cmap: str = 'flare',
+    cmap: str = "flare",
     figsize: tuple[int, int] = (7, 5),
     show: bool = False,
-    save_path: str | None = None
+    save_path: str | None = None,
 ):
     n_classes = len(prediction.distances)
     n_classifiers = len(prediction.distances[0])
@@ -331,31 +378,38 @@ def plot_dist_voting(
 
     votes = [prediction.scores[i] for i in range(n_classes)]
 
-    fig, ax = plt.subplots(figsize=figsize, layout='tight')
+    fig, ax = plt.subplots(figsize=figsize, layout="tight")
 
-    bars = ax.bar(class_labels, votes, color=colors, edgecolor='white', linewidth=1.5, width=0.5)
+    bars = ax.bar(
+        class_labels, votes, color=colors, edgecolor="white", linewidth=1.5, width=0.5
+    )
 
     for bar, v in zip(bars, votes):
         ax.text(
             bar.get_x() + bar.get_width() / 2,
             bar.get_height() + 0.15,
             str(int(v)),
-            ha='center', va='bottom',
-            fontsize=11, fontweight='bold',
-            color=colors[votes.index(v)]
+            ha="center",
+            va="bottom",
+            fontsize=11,
+            fontweight="bold",
+            color=colors[votes.index(v)],
         )
 
     ax.set_ylim(0, n_classifiers + 1.5)
     ax.set_xticks(range(n_classes))
-    ax.set_xticklabels([f"Class {l}" for l in class_labels], fontsize=10, color='#666666')
-    ax.tick_params(axis='y', labelsize=7)
+    ax.set_xticklabels(
+        [f"Class {l}" for l in class_labels], fontsize=10, color="#666666"
+    )
+    ax.tick_params(axis="y", labelsize=7)
 
-    ax.spines[['top', 'right']].set_visible(False)
+    ax.spines[["top", "right"]].set_visible(False)
 
-    ax.grid(axis='y', color='gray', alpha=0.2, linewidth=0.6)
+    ax.grid(axis="y", color="gray", alpha=0.2, linewidth=0.6)
     ax.set_axisbelow(True)
-    ax.axhline(n_classifiers / 2, color='gray', linewidth=0.8, linestyle='--')  # línea de mayoría
-
+    ax.axhline(
+        n_classifiers / 2, color="gray", linewidth=0.8, linestyle="--"
+    )  # línea de mayoría
 
     fig.suptitle(
         f"Votes per class",
@@ -373,10 +427,10 @@ def plot_dist_voting(
 
 def plot_dist_spider(
     prediction: DistPrediction,
-    cmap: str = 'flare',
+    cmap: str = "flare",
     figsize: tuple[int, int] = (10, 5),
     show: bool = False,
-    save_path: str | None = None
+    save_path: str | None = None,
 ):
     # --- Data ---
     n_classes = len(prediction.distances)
@@ -398,7 +452,6 @@ def plot_dist_spider(
     fixed_levels = np.linspace(0.15, 0.85, n_classes)
     class_colors = [cmap_object(fixed_levels[i]) for i in range(n_classes)]
 
-
     angles = np.linspace(0, 2 * np.pi, n_classifiers, endpoint=False).tolist()
     angles += angles[:1]
 
@@ -406,13 +459,10 @@ def plot_dist_spider(
     r_min = 0
 
     fig, axes = plt.subplots(
-        1, n_classes,
-        figsize=figsize,
-        subplot_kw=dict(polar=True),
-        layout='tight'
+        1, n_classes, figsize=figsize, subplot_kw=dict(polar=True), layout="tight"
     )
     axes = np.array(axes).flatten()
-    fig.set_layout_engine(layout='tight', w_pad=4.5)
+    fig.set_layout_engine(layout="tight", w_pad=4.5)
 
     for cls_idx in range(n_classes):
         ax = axes[cls_idx]
@@ -423,19 +473,27 @@ def plot_dist_spider(
 
         ax.plot(angles, values, color=color, linewidth=2 if is_winner else 1.2)
         ax.fill(angles, values, color=color, alpha=0.35 if is_winner else 0.1)
-        ax.scatter(angles[:-1], values[:-1], color=color, s=30 if is_winner else 20, zorder=5, linewidths=0)
+        ax.scatter(
+            angles[:-1],
+            values[:-1],
+            color=color,
+            s=30 if is_winner else 20,
+            zorder=5,
+            linewidths=0,
+        )
 
         ax.set_ylim(r_min, r_max)
-        ax.spines['polar'].set_visible(False)
-        ax.grid(color='gray', alpha=0.3, linewidth=0.6)
+        ax.spines["polar"].set_visible(False)
+        ax.grid(color="gray", alpha=0.3, linewidth=0.6)
         ax.set_xticks(angles[:-1])
         ax.set_xticklabels(classifier_labels, fontsize=7.4)
-        ax.tick_params(axis='x', pad=10)
-        ax.tick_params(axis='y', labelsize=5, labelcolor='#111111')
+        ax.tick_params(axis="x", pad=10)
+        ax.tick_params(axis="y", labelsize=5, labelcolor="#111111")
         ax.set_title(
             f"Class {class_labels[cls_idx]}",
-            fontsize=8, pad=12,
-            fontweight='bold' if is_winner else 'normal',
+            fontsize=8,
+            pad=12,
+            fontweight="bold" if is_winner else "normal",
         )
 
     fig.suptitle(
@@ -454,10 +512,10 @@ def plot_dist_spider(
 
 def plot_dist_bars(
     prediction: DistPrediction,
-    cmap: str = 'flare',
+    cmap: str = "flare",
     figsize: tuple[int, int] = (10, 5),
     show: bool = False,
-    save_path: str | None = None
+    save_path: str | None = None,
 ):
     n_classes = len(prediction.distances)
     class_labels = list(prediction.distances.keys())
@@ -474,10 +532,10 @@ def plot_dist_bars(
 
     diff = dist_matrix[0] - dist_matrix[1]
 
-    fig, ax = plt.subplots(figsize=figsize, layout='tight')
+    fig, ax = plt.subplots(figsize=figsize, layout="tight")
 
-    ax.barh(classifier_labels, diff, color=bar_colors, edgecolor='white', linewidth=1.2)
-    ax.axvline(0, color='gray', linewidth=0.8, linestyle='--')
+    ax.barh(classifier_labels, diff, color=bar_colors, edgecolor="white", linewidth=1.2)
+    ax.axvline(0, color="gray", linewidth=0.8, linestyle="--")
 
     x_min, x_max = min(diff), max(diff)
     x_range = x_max - x_min
@@ -490,16 +548,21 @@ def plot_dist_bars(
 
     ax.set_xlim(xlim_left, xlim_right)
 
-    ax.spines[['top', 'right']].set_visible(False)
-    ax.tick_params(axis='x', labelsize=7)
-    ax.tick_params(axis='y', labelsize=8)
+    ax.spines[["top", "right"]].set_visible(False)
+    ax.tick_params(axis="x", labelsize=7)
+    ax.tick_params(axis="y", labelsize=8)
     ax.set_title(
-        f'← {class_labels[0]} wins  |  {class_labels[1]} wins →',
-        fontsize=9, pad=8, color='gray'
+        f"← {class_labels[0]} wins  |  {class_labels[1]} wins →",
+        fontsize=9,
+        pad=8,
+        color="gray",
     )
-    ax.set_xlabel('Δ distance (class 0 − class 1)', fontsize=9)
+    ax.set_xlabel("Δ distance (class 0 − class 1)", fontsize=9)
 
-    legend_elements = [Patch(facecolor=class_colors[i], label=class_labels[i]) for i in range(n_classes)]
+    legend_elements = [
+        Patch(facecolor=class_colors[i], label=class_labels[i])
+        for i in range(n_classes)
+    ]
     ax.legend(handles=legend_elements, fontsize=8, framealpha=0.3)
 
     fig.suptitle(
