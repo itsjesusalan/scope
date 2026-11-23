@@ -85,6 +85,120 @@ def split_fixed_special(df):
     return df[~is_special], df[is_special]
 
 
+MARKER_CYCLE = ["o", "s", "^", "D"]
+LINESTYLE_CYCLE = ["-", (0, (5, 1.5)), (0, (1, 1.2)), (0, (4, 1.2, 1, 1.2))]
+
+
+def series_styles(labels):
+    """Paleta 'flare', marcadores y estilos de línea comunes para todas las figuras."""
+    palette = dict(zip(labels, sns.color_palette("flare", max(len(labels), 1))))
+    if len(labels) == 1:
+        palette = {labels[0]: sns.color_palette("flare", 3)[1]}
+    markers = dict(zip(labels, MARKER_CYCLE))
+    linestyles = dict(zip(labels, LINESTYLE_CYCLE))
+    return palette, markers, linestyles
+
+
+def draw_dodged_series(
+    ax,
+    df_long,
+    labels,
+    dodge: float = 0.09,
+    std_col: str | None = None,
+):
+    """
+    Dibuja cada serie de df_long (columnas: x, Value, Metric[, std_col]):
+    línea sobre los k numéricos + puntos sueltos para los especiales (p. ej. 'variable').
+    Si std_col está presente, añade banda ±std (numéricos) y barras de error (especiales).
+    """
+    palette, markers, linestyles = series_styles(labels)
+    offsets = {
+        label: (i - (len(labels) - 1) / 2) * dodge for i, label in enumerate(labels)
+    }
+    fixed, special = split_fixed_special(df_long)
+
+    for label in labels:
+        dx = offsets[label]
+        color = palette[label]
+        sub = fixed[fixed["Metric"] == label].sort_values("x")
+        sp = special[special["Metric"] == label]
+
+        if std_col is not None and not sub.empty:
+            ax.fill_between(
+                sub["x"] + dx,
+                sub["Value"] - sub[std_col],
+                sub["Value"] + sub[std_col],
+                color=color,
+                alpha=0.22,
+                linewidth=0,
+                zorder=1,
+            )
+        if std_col is not None and not sp.empty:
+            ax.errorbar(
+                sp["x"] + dx,
+                sp["Value"],
+                yerr=sp[std_col],
+                fmt="none",
+                ecolor=color,
+                elinewidth=1.2,
+                capsize=3,
+                alpha=0.6,
+                zorder=2,
+            )
+
+        ax.plot(
+            sub["x"] + dx,
+            sub["Value"],
+            marker=markers[label],
+            markersize=5,
+            markeredgecolor="white",
+            markeredgewidth=0.6,
+            linewidth=1.8,
+            linestyle=linestyles[label],
+            color=color,
+            label=label,
+            zorder=3,
+        )
+        ax.plot(
+            sp["x"] + dx,
+            sp["Value"],
+            marker=markers[label],
+            markersize=6,
+            markeredgecolor="white",
+            markeredgewidth=0.6,
+            linestyle="none",
+            color=color,
+            zorder=3,
+        )
+
+
+def finish_single_axis_figure(
+    fig, ax, title: str, ylabel: str, ylim, out_path: str, legend: bool = True
+):
+    set_sample_axis(ax)
+    if ylim is not None:
+        ax.set_ylim(*ylim)
+    ax.set_xlabel("Support-set size $k$", fontsize=11)
+    ax.set_ylabel(ylabel, fontsize=11)
+    ax.set_title(title, fontsize=12, fontweight="bold", pad=10)
+
+    if legend:
+        handles, lab = ax.get_legend_handles_labels()
+        fig.legend(
+            handles,
+            lab,
+            fontsize=9,
+            ncol=min(len(lab), 4),
+            loc="upper center",
+            bbox_to_anchor=(0.5, 0.0),
+            frameon=False,
+        )
+
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=300, bbox_inches="tight")
+    plt.close(fig)
+
+
 def parse_all_reports_comprehensive(root_dir):
     search_records = []
     eval_records = []
@@ -165,46 +279,43 @@ def plot_learning_curve(
     df_search,
     output_dir: str,
     dataset_name: str,
-    figsize: tuple = (10, 5),
+    figsize: tuple = (7.2, 4.6),
+    ylim: tuple | str | None = "auto",
 ):
-    plt.figure(figsize=figsize)
-
     best_trials = df_search[df_search["rank"] == 1].copy()
-    best_trials["x"] = best_trials["samples"].map(SAMPLE_POS)
-    best_trials = best_trials.sort_values("x")
+    if best_trials.empty:
+        return
 
-    base_color = sns.color_palette("flare", 3)[1]
+    if best_trials["std_score"].isna().all():
+        print(f"[{dataset_name}] Aviso: std_score vacío en rank 1, no se dibuja banda.")
 
-    sns.lineplot(
-        data=best_trials,
-        x="x",
-        y="score",
-        marker="o",
-        linewidth=3,
-        markersize=8,
-        color=base_color,
+    if ylim == "auto":
+        std = best_trials["std_score"].fillna(0)
+        lo = float((best_trials["score"] - std).min())
+        hi = float((best_trials["score"] + std).max())
+        pad = max(0.03, 0.15 * (hi - lo))
+        ylim = (max(0.0, lo - pad), min(1.0, hi + pad))
+
+    metric_key = str(best_trials["native_metric"].iloc[0])
+    metric_label = METRIC_LABELS.get(metric_key, metric_key)
+    label = f"Best validation {metric_label} (±1 std)"
+
+    best_trials["x"] = best_trials["samples"].astype(str).map(SAMPLE_POS)
+    best_trials["Value"] = best_trials["score"]
+    best_trials["std"] = best_trials["std_score"].fillna(0)
+    best_trials["Metric"] = label
+
+    fig, ax = plt.subplots(figsize=figsize)
+    draw_dodged_series(ax, best_trials, [label], dodge=0.0, std_col="std")
+
+    finish_single_axis_figure(
+        fig,
+        ax,
+        title=f"{pretty_dataset(dataset_name)} — parameter-search validation vs support-set size",
+        ylabel=f"Validation score ({metric_label})",
+        ylim=ylim,
+        out_path=os.path.join(output_dir, "validation_learning_curve.png"),
     )
-
-    plt.fill_between(
-        best_trials["x"],
-        best_trials["score"] - best_trials["std_score"],
-        best_trials["score"] + best_trials["std_score"],
-        color=base_color,
-        alpha=0.15,
-    )
-
-    set_sample_axis(plt.gca())
-    plt.title(
-        f"[{pretty_dataset(dataset_name)}] Parameter Search Validation: Best Score vs Sample Size",
-        fontsize=12,
-        fontweight="bold",
-        pad=15,
-    )
-    plt.xlabel("Number of Samples", fontsize=11)
-    plt.ylabel("Top Validation Score", fontsize=11)
-    plt.tight_layout()
-    plt.savefig(os.path.join(output_dir, "validation_learning_curve.png"), dpi=300)
-    plt.close()
 
 
 def plot_final_test_metrics(
@@ -232,51 +343,13 @@ def plot_final_test_metrics(
     df_long = df_long.sort_values("x")
 
     labels = [METRIC_LABELS[m] for m in value_vars]
-    palette = dict(zip(labels, sns.color_palette("flare", len(labels))))
-    markers = dict(zip(labels, ["o", "s", "^", "D"][: len(labels)]))
-    linestyles = dict(
-        zip(labels, ["-", (0, (5, 1.5)), (0, (1, 1.2)), (0, (4, 1.2, 1, 1.2))])
-    )
-
-    offsets = {
-        label: (i - (len(labels) - 1) / 2) * dodge for i, label in enumerate(labels)
-    }
+    palette, _, _ = series_styles(labels)
 
     title = f"{pretty_dataset(dataset_name)} — test performance vs support-set size"
 
     if layout == "single":
         fig, ax = plt.subplots(figsize=figsize)
-
-        fixed, special = split_fixed_special(df_long)
-
-        for label in labels:
-            dx = offsets[label]
-            sub = fixed[fixed["Metric"] == label]
-            ax.plot(
-                sub["x"] + dx,
-                sub["Value"],
-                marker=markers[label],
-                markersize=5,
-                markeredgecolor="white",
-                markeredgewidth=0.6,
-                linewidth=1.8,
-                linestyle=linestyles[label],
-                color=palette[label],
-                label=label,
-                zorder=3,
-            )
-            sp = special[special["Metric"] == label]
-            ax.plot(
-                sp["x"] + dx,
-                sp["Value"],
-                marker=markers[label],
-                markersize=6,
-                markeredgecolor="white",
-                markeredgewidth=0.6,
-                linestyle="none",
-                color=palette[label],
-                zorder=3,
-            )
+        draw_dodged_series(ax, df_long, labels, dodge=dodge)
 
         if chance_line:
             ax.axhline(
@@ -288,31 +361,14 @@ def plot_final_test_metrics(
                 label="Chance (AUC-ROC, bal. acc.)",
             )
 
-        set_sample_axis(ax)
-        if ylim is not None:
-            ax.set_ylim(*ylim)
-        ax.set_xlabel("Support-set size $k$", fontsize=11)
-        ax.set_ylabel("Test score", fontsize=11)
-        ax.set_title(title, fontsize=12, fontweight="bold", pad=10)
-
-        handles, lab = ax.get_legend_handles_labels()
-        fig.legend(
-            handles,
-            lab,
-            fontsize=9,
-            ncol=min(len(lab), 4),
-            loc="upper center",
-            bbox_to_anchor=(0.5, 0.0),
-            frameon=False,
+        finish_single_axis_figure(
+            fig,
+            ax,
+            title=title,
+            ylabel="Test score",
+            ylim=ylim,
+            out_path=os.path.join(output_dir, "final_test_evaluation.png"),
         )
-
-        fig.tight_layout()
-        fig.savefig(
-            os.path.join(output_dir, "final_test_evaluation.png"),
-            dpi=300,
-            bbox_inches="tight",
-        )
-        plt.close(fig)
         return
 
     ncol = 2
@@ -367,100 +423,89 @@ def plot_validation_vs_test(
     output_dir: str,
     dataset_name: str,
     target_metric: str,
-    figsize: tuple = (10, 5),
+    figsize: tuple = (7.2, 4.6),
+    ylim: tuple | None = (-0.06, 1.0),
+    dodge: float = 0.09,
 ):
     if df_search.empty or df_eval.empty:
         return
 
-    test_metric_col = (
-        "balanced_accuracy" if target_metric == "balanced_accuracy" else target_metric
-    )
+    test_metric_col = target_metric
     if test_metric_col not in df_eval.columns:
         return
 
+    metric_label = METRIC_LABELS.get(target_metric, target_metric)
+    val_label = "Parameter-search validation"
+    test_label = "Final test"
+
     val_best = df_search[df_search["rank"] == 1][["samples", "score"]].rename(
-        columns={"score": "Parameter Search Validation"}
+        columns={"score": val_label}
     )
     test_results = df_eval[["samples", test_metric_col]].rename(
-        columns={test_metric_col: "Final Test Evaluation"}
+        columns={test_metric_col: test_label}
     )
 
     merged = pd.merge(val_best, test_results, on=["samples"])
     if merged.empty:
         return
 
-    merged_long = merged.melt(
+    df_long = merged.melt(
         id_vars=["samples"],
-        value_vars=["Parameter Search Validation", "Final Test Evaluation"],
-        var_name="Phase",
+        value_vars=[val_label, test_label],
+        var_name="Metric",
         value_name="Value",
     )
-    merged_long["x"] = merged_long["samples"].map(SAMPLE_POS)
+    df_long["x"] = df_long["samples"].astype(str).map(SAMPLE_POS)
+    df_long = df_long.sort_values("x")
 
-    plt.figure(figsize=figsize)
-    sns.lineplot(
-        data=merged_long,
-        x="x",
-        y="Value",
-        style="Phase",
-        hue="Phase",
-        markers=True,
-        linewidth=2.5,
-        palette="flare",
-    )
+    fig, ax = plt.subplots(figsize=figsize)
+    draw_dodged_series(ax, df_long, [val_label, test_label], dodge=dodge)
 
-    set_sample_axis(plt.gca())
-    plt.title(
-        f"[{pretty_dataset(dataset_name)}] Generalization Gap: Parameter Search vs Final Test ({target_metric})",
-        fontsize=12,
-        fontweight="bold",
-        pad=15,
+    finish_single_axis_figure(
+        fig,
+        ax,
+        title=f"{pretty_dataset(dataset_name)} — generalization gap: validation vs test",
+        ylabel=f"Score ({metric_label})",
+        ylim=ylim,
+        out_path=os.path.join(output_dir, "search_vs_test_gap.png"),
     )
-    plt.xlabel("Number of Samples", fontsize=11)
-    plt.ylabel(f"Score ({target_metric})", fontsize=11)
-    plt.tight_layout()
-    plt.savefig(os.path.join(output_dir, "search_vs_test_gap.png"), dpi=300)
-    plt.close()
 
 
 def plot_error_rates_evolution(
-    df_eval, output_dir: str, dataset_name: str, figsize: tuple = (9, 5.5)
+    df_eval,
+    output_dir: str,
+    dataset_name: str,
+    figsize: tuple = (7.2, 4.6),
+    ylim: tuple | None = (-0.03, 1.0),
+    dodge: float = 0.09,
 ):
     if df_eval.empty:
         return
 
-    df_errors = df_eval.melt(
+    value_vars = [m for m in ["fp_rate", "fn_rate"] if m in df_eval.columns]
+    df_long = df_eval.melt(
         id_vars=["samples"],
-        value_vars=["fp_rate", "fn_rate"],
-        var_name="Error_Type",
-        value_name="Rate",
+        value_vars=value_vars,
+        var_name="metric",
+        value_name="Value",
     )
-    df_errors["x"] = df_errors["samples"].map(SAMPLE_POS)
+    df_long["x"] = df_long["samples"].astype(str).map(SAMPLE_POS)
+    df_long["Metric"] = df_long["metric"].map(METRIC_LABELS)
+    df_long = df_long.sort_values("x")
 
-    plt.figure(figsize=figsize)
-    sns.lineplot(
-        data=df_errors,
-        x="x",
-        y="Rate",
-        hue="Error_Type",
-        style="Error_Type",
-        markers=True,
-        linewidth=2.5,
-        palette="flare",
-    )
+    labels = [METRIC_LABELS[m] for m in value_vars]
 
-    set_sample_axis(plt.gca())
-    plt.title(
-        f"[{pretty_dataset(dataset_name)}] Error Analysis: False Positive vs False Negative Rates (Final Test Evaluation)",
-        fontsize=12,
-        fontweight="bold",
-        pad=15,
+    fig, ax = plt.subplots(figsize=figsize)
+    draw_dodged_series(ax, df_long, labels, dodge=dodge)
+
+    finish_single_axis_figure(
+        fig,
+        ax,
+        title=f"{pretty_dataset(dataset_name)} — test error rates vs support-set size",
+        ylabel="Error rate",
+        ylim=ylim,
+        out_path=os.path.join(output_dir, "test_error_rates.png"),
     )
-    plt.xlabel("Number of Samples", fontsize=11)
-    plt.ylabel("Error Rate", fontsize=11)
-    plt.tight_layout()
-    plt.savefig(os.path.join(output_dir, "test_error_rates.png"), dpi=300)
-    plt.close()
 
 
 def plot_stability_scatter(
