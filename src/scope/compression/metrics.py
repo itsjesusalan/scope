@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 SCoPE
 Dissimilarity Metrics
@@ -28,9 +27,9 @@ def _cdm(c_x1: float, c_x2: float, c_x1x2: float) -> float:
 
 def _clm(c_x1: float, c_x2: float, c_x1x2: float) -> float:
 
-    numerator_ = c_x1 + c_x2 - c_x1x2
-    denominator_ = c_x1x2
+    numerator_ = 1
+    denominator_ = _cdm(c_x1=c_x1, c_x2=c_x2, c_x1x2=c_x1x2)
 
     result = numerator_ / denominator_
 
-    return 1 - result
+    return 2 - result
