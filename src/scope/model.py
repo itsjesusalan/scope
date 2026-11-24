@@ -13,7 +13,7 @@ class _SCoPE(ABC):
         self,
         compressors: list[str],
         join_string: str = " ",
-        keep_similar: bool = False,
+        keep_similar: bool = True,
         class_weights: dict[int, float] | None = None,
         dissimilarity_metric_names: list[str] | None = None,
     ):

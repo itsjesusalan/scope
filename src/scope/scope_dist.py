@@ -12,14 +12,13 @@ class SCoPEDistances(_SCoPE):
         self,
         compressors: list[str],
         join_string: str = " ",
-        keep_similar: bool = False,
         class_weights: dict[int, float] | None = None,
         dissimilarity_metrics: list[str] | None = None,
     ):
         super().__init__(
             compressors=compressors,
             join_string=join_string,
-            keep_similar=keep_similar,
+            keep_similar=True,
             dissimilarity_metric_names=dissimilarity_metrics,
             class_weights=class_weights,
         )

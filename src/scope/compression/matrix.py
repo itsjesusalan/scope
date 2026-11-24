@@ -23,11 +23,7 @@ _compressor_indexes = {
     "lzma": 3,
 }
 
-_dissimilarity_indexes = {
-    "ncd": 0,
-    "cdm": 1,
-    "clm": 2,
-}
+_dissimilarity_indexes = {"ncd": 0, "cdm": 1, "clm": 2}
 
 _dissimilarity_fns = {
     "ncd": lambda c_x1, c_x2, c_x1x2: _ncd(c_x1, c_x2, c_x1x2),
