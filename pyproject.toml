@@ -30,3 +30,6 @@ experiments = [
     "tqdm>=4.67.3",
 ]
 
+[tool.pyright]
+venvPath = "."
+venv = ".venv"
