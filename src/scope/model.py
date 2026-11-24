@@ -1,6 +1,6 @@
 import pickle
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import numpy as np
 
@@ -11,12 +11,15 @@ from .prediction import Prediction
 class _SCoPE(ABC):
     def __init__(
         self,
-        compressors: List[str],
+        compressors: list[str],
         join_string: str = " ",
-        keep_similar: bool = True,
-        class_weights: Optional[Dict[int, float]] = None,
-        dissimilarity_metric_names: List[str] = ["ncd", "cdm"],  # noqa
+        keep_similar: bool = False,
+        class_weights: dict[int, float] | None = None,
+        dissimilarity_metric_names: list[str] | None = None,
     ):
+        if dissimilarity_metric_names is None:
+            dissimilarity_metric_names = ["ncd", "cdm"]
+
         self._dissimilarity_matrix = DissimilarityMatrix(
             compressor_names=compressors,
             dissimilarity_metric_names=dissimilarity_metric_names,
@@ -36,9 +39,9 @@ class _SCoPE(ABC):
 
     def predict(
         self,
-        kw_samples: List[Dict[int, List[str]]],
-        queries: List[str],
-    ) -> List[Prediction]:
+        kw_samples: list[dict[int | str, list[str]]],
+        queries: list[str],
+    ) -> list[Prediction]:
         dissimilarity_matrices = self._dissimilarity_matrix(
             queries=queries,
             supports=kw_samples,
@@ -54,11 +57,11 @@ class _SCoPE(ABC):
     @abstractmethod
     def _predict(
         self,
-        dissimilarity_matrix: Dict[str, np.ndarray],
+        dissimilarity_matrix: dict[str, np.ndarray],
     ) -> Any: ...
 
     @abstractmethod
     def _get_predicted_class(
         self,
-        scores: Dict[int, float],
+        scores: dict[int, float],
     ) -> int: ...

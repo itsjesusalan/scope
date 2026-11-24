@@ -3,22 +3,23 @@ from typing import Union
 
 from .base import BaseCompressor
 from .integrated import (
-    Bz2Compressor, GZipCompressor,
-    ZlibCompressor, LzmaCompressor,
-    ZstdCompressor
+    Bz2Compressor,
+    GZipCompressor,
+    LzmaCompressor,
+    ZlibCompressor,
 )
 
 __all__ = [
-    'CompressorType',
-    'compute_compression',
+    "CompressorType",
+    "compute_compression",
 ]
+
 
 class CompressorType(Enum):
     GZIP = "gzip"
     BZ2 = "bz2"
     ZLIB = "zlib"
     LZMA = "lzma"
-    ZSTD = "zstd"
 
 
 _STRATEGIES = {
@@ -26,11 +27,10 @@ _STRATEGIES = {
     CompressorType.BZ2: Bz2Compressor,
     CompressorType.ZLIB: ZlibCompressor,
     CompressorType.LZMA: LzmaCompressor,
-    CompressorType.ZSTD: ZstdCompressor,
 }
 
 
-def get_compressor(name: Union[str, CompressorType]) -> BaseCompressor:
+def get_compressor(name: str | CompressorType) -> BaseCompressor:
     if isinstance(name, str):
         try:
             compressor_enum = CompressorType(name.lower())
@@ -38,7 +38,7 @@ def get_compressor(name: Union[str, CompressorType]) -> BaseCompressor:
             allowed = sorted(c.value for c in CompressorType)
             raise ValueError(
                 f"'{name}' is not a valid compressor name.",
-                f"Expected one of: {', '.join(allowed)}"
+                f"Expected one of: {', '.join(allowed)}",
             )
     elif isinstance(name, CompressorType):
         compressor_enum = name
@@ -50,7 +50,7 @@ def get_compressor(name: Union[str, CompressorType]) -> BaseCompressor:
 
 
 def compute_compression(
-    sequence: Union[str, bytes],
+    sequence: str | bytes,
     compressor: str,
 ) -> bytes:
     compressor_instance = get_compressor(

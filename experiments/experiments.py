@@ -281,8 +281,6 @@ def search_scope_sample(
 if __name__ == "__main__":
     settings_files: list[str] = [
         "settings/clintox.toml",
-        "settings/bace.toml",
-        "settings/bbbp.toml",
     ]
 
     for file_ in settings_files:

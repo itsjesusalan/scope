@@ -1,6 +1,6 @@
-import numpy as np
 from dataclasses import dataclass
-from typing import Dict, List
+
+import numpy as np
 from shapely.geometry.base import BaseGeometry
 
 
@@ -13,23 +13,23 @@ class GeometryMetrics:
 
 @dataclass(frozen=True)
 class Prediction:
-    scores: Dict[int, float]
+    scores: dict[int, float]
     predicted_class: int
-    dissimilarity_matrix:  Dict[str, np.ndarray]
+    dissimilarity_matrix: dict[str, np.ndarray]
 
 
 @dataclass(frozen=True)
 class PolygonPrediction(Prediction):
-    convex_hull_clusters: Dict[int, BaseGeometry]
-    convex_hull_queries: Dict[int, BaseGeometry]
-    query_points: Dict[int, np.ndarray]
-    geometry_metrics: Dict[int, GeometryMetrics]
+    convex_hull_clusters: dict[int, BaseGeometry]
+    convex_hull_queries: dict[int, BaseGeometry]
+    query_points: dict[int, np.ndarray]
+    geometry_metrics: dict[int, GeometryMetrics]
 
 
 @dataclass(frozen=True)
 class DistPrediction(Prediction):
-    euclidean_distances: Dict[int, list[float]]
-    cosine_distances: Dict[int, list[float]]
-    distances: Dict[int, list[float]]
+    euclidean_distances: dict[int, list[float]]
+    cosine_distances: dict[int, list[float]]
+    distances: dict[int, list[float]]
     wining_votes: int
-    classifier_labels: List[str]
+    classifier_labels: list[str]

@@ -1,15 +1,15 @@
-# -*- coding: utf-8 -*-
 """
 SCoPE — Evaluation Metrics
 Jesus Alan Hernandez Galvan
 """
 
-import os
 import json
+import os
 import warnings
-import numpy as np
 from datetime import datetime
-from typing import Any, Dict, Optional, Union
+from typing import Any
+
+import numpy as np
 
 from ..prediction import Prediction
 
@@ -30,8 +30,9 @@ except ImportError:
     )
 
 
-ArrayLike = Union[list, np.ndarray]
-Report    = Dict[str, Any]
+ArrayLike = list | np.ndarray
+Report = dict[str, Any]
+
 
 class NumpyEncoder(json.JSONEncoder):
     def default(self, o: Any) -> Any:
@@ -83,40 +84,33 @@ def _binary_metrics(y_true: np.ndarray, y_prob: np.ndarray) -> Report:
         "auc_roc": _safe(
             lambda: roc_auc_score(y_true, y_prob, average="macro"),
             default=0.5,
-            label="ROC AUC"
+            label="ROC AUC",
         ),
     }
 
 
-def _shared_metrics(
-    y_true: np.ndarray,
-    y_pred: np.ndarray
-) -> Report:
+def _shared_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> Report:
     return {
         "f1": _safe(
-            lambda: f1_score(y_true, y_pred, average="macro"),
-            default=0.0,
-            label="F1"
+            lambda: f1_score(y_true, y_pred, average="macro"), default=0.0, label="F1"
         ),
         "balanced_accuracy": _safe(
             lambda: balanced_accuracy_score(y_true, y_pred),
             default=0.0,
-            label="balanced accuracy"
+            label="balanced accuracy",
         ),
         "confusion_matrix": _safe(
             lambda: confusion_matrix(y_true, y_pred),
             default=None,
-            label="confusion matrix"
+            label="confusion matrix",
         ),
         "confusion_matrix_normalized": _safe(
             lambda: confusion_matrix(y_true, y_pred, normalize="true"),
             default=None,
-            label="normalized confusion matrix"
+            label="normalized confusion matrix",
         ),
         "mcc": _safe(
-            lambda: matthews_corrcoef(y_true, y_pred),
-            default=None,
-            label="MCC"
+            lambda: matthews_corrcoef(y_true, y_pred), default=None, label="MCC"
         ),
     }
 
@@ -124,7 +118,7 @@ def _shared_metrics(
 def _save_report(report: Report, directory: str) -> None:
     try:
         os.makedirs(directory, exist_ok=True)
-        stamp    = datetime.now().strftime("%Y%m%d_%H%M%S")
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filepath = os.path.join(directory, f"evaluation_report_{stamp}.json")
         with open(filepath, "w") as fh:
             json.dump(report, fh, cls=NumpyEncoder, indent=4)
@@ -133,10 +127,10 @@ def _save_report(report: Report, directory: str) -> None:
 
 
 def make_evaluation_report(
-    y_true:    ArrayLike,
-    y_pred:    ArrayLike,
-    y_score:   ArrayLike,
-    save_path: Optional[str] = None,
+    y_true: ArrayLike,
+    y_pred: ArrayLike,
+    y_score: ArrayLike,
+    save_path: str | None = None,
 ) -> Report:
     """
     Build a classification evaluation report.
@@ -152,13 +146,13 @@ def make_evaluation_report(
     -------
     dict with metrics (fpr/tpr/thresholds only populated for binary tasks).
     """
-    y_true  = np.asarray(y_true)
-    y_pred  = np.asarray(y_pred)
+    y_true = np.asarray(y_true)
+    y_pred = np.asarray(y_pred)
     y_score = np.asarray(y_score).astype(np.float64)
 
     n_classes = y_score.shape[1] if y_score.ndim > 1 else 1
     is_binary = n_classes == 2
-    y_prob    = _to_prob(y_score, is_binary)
+    y_prob = _to_prob(y_score, is_binary)
 
     report: Report = {
         "timestamp": datetime.now().isoformat(),
@@ -169,8 +163,15 @@ def make_evaluation_report(
     if is_binary:
         report.update(_binary_metrics(y_true, y_prob))
     else:
-        report.update({"fpr": None, "tpr": None, "thresholds": None,
-                       "auc_roc": None, "ap_score": None})
+        report.update(
+            {
+                "fpr": None,
+                "tpr": None,
+                "thresholds": None,
+                "auc_roc": None,
+                "ap_score": None,
+            }
+        )
 
     report.update(_shared_metrics(y_true, y_pred))
 
@@ -194,14 +195,11 @@ def predictions_to_report(
     y_true      : etiqueta real de cada muestra, mismo orden que predictions
     save_path   : directorio donde guardar el JSON, opcional
     """
-    y_pred  = np.array([p.predicted_class for p in predictions])
+    y_pred = np.array([p.predicted_class for p in predictions])
 
     # scores es Dict[int, float] → necesitamos un vector ordenado por clase
     classes = sorted(predictions[0].scores.keys())
-    y_score = np.array([
-        [p.scores[c] for c in classes]
-        for p in predictions
-    ])
+    y_score = np.array([[p.scores[c] for c in classes] for p in predictions])
 
     return make_evaluation_report(
         y_true=np.array(y_true),

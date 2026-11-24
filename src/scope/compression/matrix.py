@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 SCoPE
 Dissimilarity Matrix
@@ -11,7 +10,6 @@ import time
 from abc import ABC, abstractmethod
 from functools import lru_cache
 from itertools import product as combine
-from typing import Dict, List, Union
 
 import numpy as np
 
@@ -39,7 +37,7 @@ _dissimilarity_fns = {
 
 
 @lru_cache(maxsize=None)
-def _compute_compression_size(sequence: Union[str, bytes], compressor: str) -> int:
+def _compute_compression_size(sequence: str | bytes, compressor: str) -> int:
 
     if len(sequence) == 0:
         raise ValueError(f"WARNING: Empty sequence for compression with {compressor}")
@@ -80,7 +78,7 @@ class DissimilarityMatrixBase(ABC):
     @staticmethod
     def _validate_join_str_value(join_string):
         if not isinstance(join_string, str):
-            raise ValueError(
+            raise TypeError(
                 f"Invalid join string: {join_string}. join_string must be a string object."
             )
 
@@ -91,8 +89,8 @@ class DissimilarityMatrixBase(ABC):
 
     def __init__(
         self,
-        compressor_names: Union[str, List[str]] = "gzip",
-        dissimilarity_metric_names: Union[str, List[str]] = "ncd",
+        compressor_names: str | list[str] = "gzip",
+        dissimilarity_metric_names: str | list[str] = "ncd",
         join_string: str = " ",
     ):
         if compressor_names == "all":
@@ -126,20 +124,20 @@ class DissimilarityMatrixBase(ABC):
         ]
 
     @abstractmethod
-    def _compute_one(self, query: str, support: List[str]) -> np.ndarray:
+    def _compute_one(self, query: str, support: list[str]) -> np.ndarray:
         raise NotImplementedError()
 
     def _compute_matrix(
         self,
         query: str,
-        supports: Dict[Union[int, str], List[str]],
-    ) -> Dict[str, np.ndarray]:
+        supports: dict[int | str, list[str]],
+    ) -> dict[str, np.ndarray]:
         start_ = time.perf_counter()
 
         _output = {}
 
         for key in supports:
-            support: List[str] = supports[key]
+            support: list[str] = supports[key]
 
             cluster_dissimilarity: np.ndarray = self._compute_one(
                 query=query, support=support
@@ -157,20 +155,18 @@ class DissimilarityMatrixBase(ABC):
 
     def __call__(
         self,
-        queries: Union[List[str], str],
-        supports: Union[List[Dict[int, List[str]]], Dict[int, List[str]]],
-    ) -> List[Dict[str, np.ndarray]]:
+        queries: list[str] | str,
+        supports: list[dict[int | str, list[str]]],
+    ) -> list[dict[str, np.ndarray]]:
 
         if not isinstance(queries, (list, str)):
-            raise ValueError(
+            raise TypeError(
                 f"'queries' must be a string or list of strings. "
                 f"Got {type(queries)} instead."
             )
 
         if not isinstance(supports, (list, dict)):
-            raise ValueError(
-                "'supports' must be a dictionary or list of dictionaries. "
-            )
+            raise TypeError("'supports' must be a dictionary or list of dictionaries. ")
 
         if isinstance(queries, str):
             queries = [queries]
@@ -202,8 +198,8 @@ class DissimilarityMatrixBase(ABC):
 class DissimilarityMatrixV1(DissimilarityMatrixBase):
     def __init__(
         self,
-        compressor_names: Union[str, List[str]] = "gzip",
-        dissimilarity_metric_names: Union[str, List[str]] = "ncd",
+        compressor_names: str | list[str] = "gzip",
+        dissimilarity_metric_names: str | list[str] = "ncd",
         join_string: str = " ",
         keep_similar: bool = False,
         epsilon: float = 1e-10,
@@ -216,7 +212,7 @@ class DissimilarityMatrixV1(DissimilarityMatrixBase):
         self.epsilon = epsilon
         self.keep_similar = keep_similar
 
-    def _compute_one(self, query: str, support: List[str]) -> np.ndarray:
+    def _compute_one(self, query: str, support: list[str]) -> np.ndarray:
 
         _output = np.full(
             shape=(

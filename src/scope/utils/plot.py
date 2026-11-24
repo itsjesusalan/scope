@@ -3,7 +3,6 @@ import matplotlib
 matplotlib.use("Agg")
 
 from pathlib import Path
-from typing import Dict
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -144,7 +143,7 @@ def plot_polygon_prediction(
 
 
 def plot_dissimilarity_matrix(
-    dissimilarity_matrix: Dict[str, np.ndarray],
+    dissimilarity_matrix: dict[str, np.ndarray],
     cmap: str = "flare",
     show: bool = False,
     save_path: str | None = None,

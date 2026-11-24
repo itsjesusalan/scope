@@ -1,33 +1,21 @@
-# -*- coding: utf-8 -*-
 """
-    SCoPE
-    Compression Functions
-    Jesus Alan Hernandez Galvan
+SCoPE
+Compression Functions
+Jesus Alan Hernandez Galvan
 """
-import compression.zstd as zstd
-import gzip
+
 import bz2
-import zlib
+import gzip
 import lzma
+import zlib
 
 from .base import BaseCompressor
 
 
-class ZstdCompressor(BaseCompressor):
-    def __init__(self):
-        super().__init__(
-            compressor_name='zstd'
-        )
-    def compress(self, sequence: bytes) -> bytes:
-        return zstd.compress(
-            sequence,
-            level=9
-        )
-
 class LzmaCompressor(BaseCompressor):
     def __init__(self):
         super().__init__(
-            compressor_name='lzma',
+            compressor_name="lzma",
         )
 
     def compress(self, sequence: bytes) -> bytes:
@@ -44,10 +32,7 @@ class Bz2Compressor(BaseCompressor):
         )
 
     def compress(self, sequence: bytes) -> bytes:
-        return bz2.compress(
-            sequence,
-            compresslevel=self._compression_level
-        )
+        return bz2.compress(sequence, compresslevel=self._compression_level)
 
 
 class ZlibCompressor(BaseCompressor):
@@ -58,10 +43,7 @@ class ZlibCompressor(BaseCompressor):
         )
 
     def compress(self, sequence: bytes) -> bytes:
-        return zlib.compress(
-            sequence,
-            level=self._compression_level
-        )
+        return zlib.compress(sequence, level=self._compression_level)
 
 
 class GZipCompressor(BaseCompressor):
@@ -72,7 +54,5 @@ class GZipCompressor(BaseCompressor):
         )
 
     def compress(self, sequence: bytes) -> bytes:
-        return gzip.compress(
-            sequence,
-            compresslevel=self._compression_level
-        )
+        return gzip.compress(sequence, compresslevel=self._compression_level)
+
