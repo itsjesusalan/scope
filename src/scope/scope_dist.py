@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import numpy as np
 
@@ -10,11 +10,11 @@ from .prediction import DistPrediction
 class SCoPEDistances(_SCoPE):
     def __init__(
         self,
-        compressors: List[str],
+        compressors: list[str],
         join_string: str = " ",
         keep_similar: bool = True,
-        class_weights: Optional[Dict[int, float]] = None,
-        dissimilarity_metrics: List[str] = ["ncd", "cdm"],  # noqa
+        class_weights: dict[int, float] | None = None,
+        dissimilarity_metrics: list[str] = ["ncd", "cdm"],  # noqa
     ):
         super().__init__(
             compressors=compressors,
@@ -28,7 +28,7 @@ class SCoPEDistances(_SCoPE):
 
     def _get_predicted_class(
         self,
-        scores: Dict[int, float],
+        scores: dict[int, float],
     ) -> int: ...
 
     @staticmethod
@@ -56,7 +56,7 @@ class SCoPEDistances(_SCoPE):
 
     def _predict(
         self,
-        dissimilarity_matrix: Dict[str, np.ndarray],
+        dissimilarity_matrix: dict[str, np.ndarray],
     ) -> DistPrediction:
 
         classifier_labels = [
@@ -80,8 +80,6 @@ class SCoPEDistances(_SCoPE):
             support_data = dissimilarity_matrix[key][:-1].mean(axis=0, keepdims=True)
 
             query_data = dissimilarity_matrix[key][-1:][0]
-
-            _, n_compressors, n_metrics, _ = support_data.shape
 
             euc_dist = self._calculate_distance(
                 support=support_data,
