@@ -26,7 +26,7 @@ def set_seed(seed: int):
 
 
 def print_results(report) -> None:
-    print(f"\nResultados finales en test:")
+    print("\nResultados finales en test:")
     print(f"  auc_roc              : {report['auc_roc']}")
     print(f"  f1              : {report['f1']}")
     print(f"  mcc              : {report['mcc']}")
@@ -71,24 +71,10 @@ def _search(
     report_path: str,
 ) -> SCoPE:
     all_compressors = [
-        selection.split(",")
-        for selection in all_subsets_str(
-            [
-                "bz2",
-                "zlib",
-                "gzip",
-            ]
-        )
+        selection.split(",") for selection in all_subsets_str(["bz2", "zlib", "gzip"])
     ]
     all_dissimilarity_metrics = [
-        selection.split(",")
-        for selection in all_subsets_str(
-            [
-                "ncd",
-                "cdm",
-                "clm",
-            ]
-        )
+        selection.split(",") for selection in all_subsets_str(["ncd", "cdm", "clm"])
     ]
     param_grid = {
         "compressors": all_compressors,
@@ -193,7 +179,7 @@ def search_scope_variable(
     )
 
     print("\n")
-    print(f"# Samples: Variable")
+    print("# Samples: Variable")
     print("=" * 120)
 
     best_model = _search(
