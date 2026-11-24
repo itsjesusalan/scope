@@ -6,7 +6,7 @@ random_seed = 42
 [optimization]
 test_size = 0.7
 n_splits = 5
-metric = "balanced_accuracy"
+metric = "distance_auc"
 
 [dataset]
 min_length = 30

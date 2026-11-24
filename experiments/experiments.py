@@ -7,7 +7,7 @@ from utils.combinations import all_subsets_str
 from utils.dataset import build_dataset_by_sample, build_dataset_variable, load_dataset
 from utils.plots import plot_correct_predictions_by_class
 from utils.search.report import save_search_results
-from utils.search.scope import grid_search
+from utils.search.scope import grid_search, jackknife_se
 from utils.settings import GetSettings
 
 from scope import SCoPEDistances as SCoPE
@@ -27,22 +27,23 @@ def set_seed(seed: int):
 
 def print_results(report) -> None:
     print("\nResultados finales en test:")
-    print(f"  auc_roc              : {report['auc_roc']}")
-    print(f"  f1              : {report['f1']}")
-    print(f"  mcc              : {report['mcc']}")
-    print(f"  balanced_accuracy              : {report['balanced_accuracy']}")
+    print(f"  auc_roc (votos)      : {report['auc_roc']}")
+    print(f"  distance_auc         : {report.get('distance_auc')}")
+    print(f"  f1                   : {report['f1']}")
+    print(f"  mcc                  : {report['mcc']}")
+    print(f"  balanced_accuracy    : {report['balanced_accuracy']}")
 
     cm = report["confusion_matrix"]
-    print(f"  {'confusion_matrix'}:")
+    print("  confusion_matrix:")
     print("        pred 0  pred 1")
     print(f"true 0    {cm[0][0]:>4}    {cm[0][1]:>4}")
     print(f"true 1    {cm[1][0]:>4}    {cm[1][1]:>4}")
 
     cm = report["confusion_matrix_normalized"]
-    print(f"  {'confusion_matrix_normalized'}:")
+    print("  confusion_matrix_normalized:")
     print("        pred 0  pred 1")
-    print(f"true 0    {cm[0][0]:>4}    {cm[0][1]:>4}")
-    print(f"true 1    {cm[1][0]:>4}    {cm[1][1]:>4}")
+    print(f"true 0    {cm[0][0]:>6.3f}  {cm[0][1]:>6.3f}")
+    print(f"true 1    {cm[1][0]:>6.3f}  {cm[1][1]:>6.3f}")
 
 
 def get_dataset(
@@ -59,6 +60,14 @@ def get_dataset(
     )
 
     return search, test
+
+
+def _fold_summary(trial, key: str, n_splits: int) -> tuple[float, float]:
+    """Media y SE jackknife de `key` sobre los reportes por fold del trial."""
+    values = [fr.report[key] for fr in trial.results if fr.report.get(key) is not None]
+    if not values:
+        return float("nan"), float("nan")
+    return float(np.mean(values)), jackknife_se(float(np.std(values)), n_splits)
 
 
 def _search(
@@ -98,14 +107,16 @@ def _search(
         param_space=param_grid,
     )
 
-    best_params = results[0].params
-    print(f"\nMejor configuración: {best_params}")
-    print(
-        f"Score (CV):          {results[0].mean_score:.4f} ± {results[0].std_score:.4f}"
-    )
+    best = results[0]
+    se = jackknife_se(best.std_score, n_splits)
+    ba, ba_se = _fold_summary(best, "balanced_accuracy", n_splits)
 
-    model = SCoPE(**best_params)
-    model.save(os.path.join(report_path, "model.pkl"))
+    print(f"\nMejor configuración: {best.params}")
+    print(f"  {metric:<20} (search): {best.mean_score:.4f} ± {se:.4f} (SE)")
+    if metric != "balanced_accuracy":
+        print(f"  {'balanced_accuracy':<20} (search): {ba:.4f} ± {ba_se:.4f} (SE)")
+
+    model = SCoPE(**best.params)
 
     return model
 

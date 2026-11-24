@@ -11,7 +11,7 @@ from typing import Any
 
 import numpy as np
 
-from ..prediction import Prediction
+from ..prediction import DistPrediction, Prediction
 
 try:
     from sklearn.metrics import (
@@ -110,7 +110,7 @@ def _shared_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> Report:
             label="normalized confusion matrix",
         ),
         "mcc": _safe(
-            lambda: matthews_corrcoef(y_true, y_pred), default=None, label="MCC"
+            lambda: matthews_corrcoef(y_true, y_pred), default=0.0, label="MCC"
         ),
     }
 
@@ -132,20 +132,7 @@ def make_evaluation_report(
     y_score: ArrayLike,
     save_path: str | None = None,
 ) -> Report:
-    """
-    Build a classification evaluation report.
 
-    Parameters
-    ----------
-    y_true:    Ground-truth labels.
-    y_pred:    Hard predictions.
-    y_score:   Raw scores or probabilities (1-D for binary, 2-D for multi-class).
-    save_path: If given, the JSON report is written to this directory.
-
-    Returns
-    -------
-    dict with metrics (fpr/tpr/thresholds only populated for binary tasks).
-    """
     y_true = np.asarray(y_true)
     y_pred = np.asarray(y_pred)
     y_score = np.asarray(y_score).astype(np.float64)
@@ -181,29 +168,40 @@ def make_evaluation_report(
     return report
 
 
+def distance_score(predictions: list[DistPrediction]) -> np.ndarray:
+    d = np.array(
+        [[p.distances[0], p.distances[1]] for p in predictions]
+    )  # (n, 2, n_clf)
+    tot = d[:, 0] + d[:, 1]
+    r = np.divide(d[:, 0], tot, out=np.full_like(tot, 0.5), where=tot > 0)
+    return np.median(r, axis=1)
+
+
 def predictions_to_report(
     predictions: list[Prediction],
     y_true: list[int],
     save_path: str | None = None,
 ) -> Report:
-    """
-    Convierte una lista de Prediction al formato de make_evaluation_report.
 
-    Parameters
-    ----------
-    predictions : una Prediction por muestra (output del clasificador)
-    y_true      : etiqueta real de cada muestra, mismo orden que predictions
-    save_path   : directorio donde guardar el JSON, opcional
-    """
     y_pred = np.array([p.predicted_class for p in predictions])
 
-    # scores es Dict[int, float] → necesitamos un vector ordenado por clase
     classes = sorted(predictions[0].scores.keys())
     y_score = np.array([[p.scores[c] for c in classes] for p in predictions])
 
-    return make_evaluation_report(
+    report = make_evaluation_report(
         y_true=np.array(y_true),
         y_pred=y_pred,
         y_score=y_score,
-        save_path=save_path,
     )
+
+    if isinstance(predictions[0], DistPrediction) and len(classes) == 2:
+        report["distance_auc"] = _safe(
+            lambda: roc_auc_score(y_true, distance_score(predictions)),
+            default=0.5,
+            label="distance AUC",
+        )
+
+    if save_path:
+        _save_report(report, save_path)
+
+    return report

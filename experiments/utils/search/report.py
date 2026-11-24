@@ -1,9 +1,9 @@
-import os
 import json
-from typing import Dict
-from pathlib import Path
-from datetime import datetime
+import os
 from dataclasses import asdict
+from datetime import datetime
+from pathlib import Path
+
 
 def serialize_param_space(param_space: dict) -> dict:
     result = {}
@@ -16,42 +16,51 @@ def serialize_param_space(param_space: dict) -> dict:
         elif hasattr(val, "a") and hasattr(val, "b"):  # loguniform, randint
             result[key] = {
                 "type": type(val).__name__,
-                "low":  val.a,
+                "low": val.a,
                 "high": val.b,
             }
         else:
             result[key] = str(val)
     return result
 
+
 def save_search_results(
-    results:     list,
-    path:        str | Path,
-    metric:      str = "balanced_accuracy",
-    param_space: Dict[str, list] | None = None,  # ← agregado
+    results: list,
+    path: str | Path,
+    metric: str = "balanced_accuracy",
+    param_space: dict[str, list] | None = None,  # ← agregado
 ) -> None:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
 
     data = {
-        "metric":     metric,
-        "n_trials":   len(results),
-        "param_space": param_space or {},        # ← guardado
+        "metric": metric,
+        "n_trials": len(results),
+        "param_space": param_space or {},  # ← guardado
         "best": {
-            "score":  results[0].mean_score if hasattr(results[0], "mean_score") else results[0].score,
-            "std_score": results[0].std_score if hasattr(results[0], "std_score") else None,
+            "score": results[0].mean_score
+            if hasattr(results[0], "mean_score")
+            else results[0].score,
+            "std_score": results[0].std_score
+            if hasattr(results[0], "std_score")
+            else None,
             "params": results[0].params,
         },
         "trials": [
             {
                 "rank": i + 1,
-                "score": trial.mean_score if hasattr(trial, "mean_score") else trial.score,
+                "score": trial.mean_score
+                if hasattr(trial, "mean_score")
+                else trial.score,
                 "std_score": trial.std_score if hasattr(trial, "std_score") else None,
                 "params": trial.params,
                 "reports": [
                     fr.report if isinstance(fr.report, dict) else asdict(fr.report)
                     for fr in trial.fold_results
                     if fr.report is not None
-                ] if hasattr(trial, "fold_results") else [
+                ]
+                if hasattr(trial, "fold_results")
+                else [
                     r.report if isinstance(r.report, dict) else asdict(r.report)
                     for r in trial.results
                     if r is not None
@@ -69,4 +78,3 @@ def save_search_results(
         json.dump(data, fh, indent=4, default=str)
 
     print(f"Saved {len(results)} trials → {path}")
-

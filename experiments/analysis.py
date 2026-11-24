@@ -1,6 +1,8 @@
+import glob
 import json
 import os
 import re
+import tomllib
 
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -32,6 +34,7 @@ METRIC_LABELS = {
     "f1_score": "Macro F1",
     "balanced_accuracy": "Balanced accuracy",
     "mcc": "MCC",
+    "distance_auc": "Distance AUC-ROC",
     "fp_rate": "False positive rate",
     "fn_rate": "False negative rate",
 }
@@ -199,78 +202,97 @@ def finish_single_axis_figure(
     plt.close(fig)
 
 
-def parse_all_reports_comprehensive(root_dir):
-    search_records = []
-    eval_records = []
+REPORT_REGEX = re.compile(r"results/([^/]+)/search_results/(\d+|variable)")
 
-    search_regex = re.compile(r"results/([^/]+)/search_results/(\d+|variable)")
-    eval_regex = re.compile(r"results/([^/]+)/search_results/(\d+|variable)")
 
+def load_metrics(settings_dir: str = "settings") -> dict[str, str]:
+    """study_name -> metric de optimización, leído de settings/*.toml."""
+    metrics = {}
+    for path in glob.glob(os.path.join(settings_dir, "*.toml")):
+        with open(path, "rb") as f:
+            cfg = tomllib.load(f)
+        metrics[cfg["experiment"]["study_name"]] = cfg["optimization"]["metric"]
+    return metrics
+
+
+def _latest_reports(root_dir: str, prefix: str) -> dict[tuple[str, str], str]:
+    """Devuelve solo el JSON más reciente por (dataset, samples)."""
+    latest = {}
     for root, _, files in os.walk(root_dir):
         for file in files:
-            file_path = os.path.join(root, file)
+            if not (file.startswith(prefix) and file.endswith(".json")):
+                continue
+            path = os.path.join(root, file)
+            match = REPORT_REGEX.search(path)
+            if not match:
+                continue
+            key = (match.group(1), match.group(2))
+            # el timestamp YYYYmmdd_HHMMSS ordena lexicográficamente
+            if key not in latest or file > os.path.basename(latest[key]):
+                latest[key] = path
+    return latest
 
-            if file.endswith(".json") and file.startswith("search_report"):
-                match = search_regex.search(file_path)
-                if not match:
-                    continue
-                dataset, samples = match.group(1), match.group(2)  # samples siempre str
 
-                try:
-                    with open(file_path, "r") as f:
-                        report = json.load(f)
+def parse_all_reports_comprehensive(root_dir: str, metrics: dict[str, str]):
+    search_records, eval_records = [], []
 
-                    native_metric = report.get("metric", "balanced_accuracy")
+    for (dataset, samples), path in _latest_reports(root_dir, "search_report").items():
+        try:
+            with open(path) as f:
+                report = json.load(f)
+        except Exception as e:
+            print(f"Error leyendo {path}: {e}")
+            continue
 
-                    for trial in report.get("trials", []):
-                        params = trial.get("params", {})
-                        compressors = "+".join(sorted(params.get("compressors", [])))
-                        metrics = "+".join(
-                            sorted(params.get("dissimilarity_metrics", []))
-                        )
+        native_metric = report.get("metric")
+        expected = metrics.get(dataset)
+        if expected and native_metric != expected:
+            print(
+                f"[{dataset}/{samples}] Aviso: reporte con '{native_metric}', "
+                f"config dice '{expected}'"
+            )
 
-                        search_records.append(
-                            {
-                                "dataset": dataset,
-                                "samples": samples,
-                                "rank": trial.get("rank"),
-                                "native_metric": native_metric,
-                                "score": trial.get("score"),
-                                "std_score": trial.get("std_score"),
-                                "compressors": compressors,
-                                "metrics": metrics,
-                            }
-                        )
-                except Exception as e:
-                    print(f"Error leyendo {file}: {e}")
+        for trial in report.get("trials", []):
+            params = trial.get("params", {})
+            search_records.append(
+                {
+                    "dataset": dataset,
+                    "samples": samples,
+                    "rank": trial.get("rank"),
+                    "native_metric": native_metric,
+                    "score": trial.get("score"),
+                    "std_score": trial.get("std_score"),
+                    "compressors": "+".join(sorted(params.get("compressors", []))),
+                    "metrics": "+".join(
+                        sorted(params.get("dissimilarity_metrics", []))
+                    ),
+                }
+            )
 
-            elif file.endswith(".json") and file.startswith("evaluation_report"):
-                match = eval_regex.search(file_path)
-                if not match:
-                    continue
-                dataset, samples = match.group(1), match.group(2)  # samples siempre str
+    for (dataset, samples), path in _latest_reports(
+        root_dir, "evaluation_report"
+    ).items():
+        try:
+            with open(path) as f:
+                report = json.load(f)
+        except Exception as e:
+            print(f"Error leyendo {path}: {e}")
+            continue
 
-                try:
-                    with open(file_path, "r") as f:
-                        report = json.load(f)
-
-                    cm = report.get("confusion_matrix", [[0, 0], [0, 0]])
-                    tn, fp, fn, tp = cm[0][0], cm[0][1], cm[1][0], cm[1][1]
-
-                    eval_records.append(
-                        {
-                            "dataset": dataset,
-                            "samples": samples,
-                            "auc_roc": report.get("auc_roc"),
-                            "f1_score": report.get("f1"),
-                            "balanced_accuracy": report.get("balanced_accuracy"),
-                            "mcc": report.get("mcc"),
-                            "fp_rate": fp / (tn + fp) if (tn + fp) > 0 else 0,
-                            "fn_rate": fn / (fn + tp) if (fn + tp) > 0 else 0,
-                        }
-                    )
-                except Exception as e:
-                    print(f"Error leyendo {file}: {e}")
+        cm = report.get("confusion_matrix", [[0, 0], [0, 0]])
+        tn, fp, fn, tp = cm[0][0], cm[0][1], cm[1][0], cm[1][1]
+        eval_records.append(
+            {
+                "dataset": dataset,
+                "samples": samples,
+                "auc_roc": report.get("auc_roc"),
+                "f1_score": report.get("f1"),
+                "balanced_accuracy": report.get("balanced_accuracy"),
+                "mcc": report.get("mcc"),
+                "fp_rate": fp / (tn + fp) if (tn + fp) > 0 else 0,
+                "fn_rate": fn / (fn + tp) if (fn + tp) > 0 else 0,
+            }
+        )
 
     return pd.DataFrame(search_records), pd.DataFrame(eval_records)
 
@@ -432,6 +454,10 @@ def plot_validation_vs_test(
 
     test_metric_col = target_metric
     if test_metric_col not in df_eval.columns:
+        print(
+            f"[{dataset_name}] Aviso: '{target_metric}' no está en el reporte de test; "
+            "no se dibuja search_vs_test_gap."
+        )
         return
 
     metric_label = METRIC_LABELS.get(target_metric, target_metric)
@@ -689,13 +715,13 @@ if __name__ == "__main__":
 
     matplotlib.use("Agg")
 
-    TARGET_METRIC = "balanced_accuracy"
+    METRICS = load_metrics("settings")
 
     ROOT_DATA_DIR = "./results"
     BASE_OUTPUT_DIR = os.path.join(ROOT_DATA_DIR, "plots_analisis")
     os.makedirs(BASE_OUTPUT_DIR, exist_ok=True)
 
-    df_search_all, df_eval_all = parse_all_reports_comprehensive(ROOT_DATA_DIR)
+    df_search_all, df_eval_all = parse_all_reports_comprehensive(ROOT_DATA_DIR, METRICS)
     set_sample_order(df_search_all, df_eval_all)
 
     datasets_search = (
@@ -709,7 +735,11 @@ if __name__ == "__main__":
     else:
         if not df_search_all.empty:
             plot_global_top_parameters_census(df_search_all, BASE_OUTPUT_DIR)
-            plot_best_param_matrix(df_search_all, BASE_OUTPUT_DIR, TARGET_METRIC)
+            plot_best_param_matrix(
+                df_search_all,
+                BASE_OUTPUT_DIR,
+                " / ".join(sorted(set(METRICS.values()))),
+            )
 
         for current_dataset in all_datasets:
             dataset_plot_dir = os.path.join(BASE_OUTPUT_DIR, current_dataset)
@@ -739,5 +769,9 @@ if __name__ == "__main__":
 
             if not df_search.empty and not df_eval.empty:
                 plot_validation_vs_test(
-                    df_search, df_eval, dataset_plot_dir, current_dataset, TARGET_METRIC
+                    df_search,
+                    df_eval,
+                    dataset_plot_dir,
+                    current_dataset,
+                    METRICS.get(current_dataset, "balanced_accuracy"),
                 )
